@@ -60,11 +60,14 @@ make format
 Проверка форматирования без изменения файла:
 
 ```bash
-clang-format --dry-run --Werror src/game_of_life.c
+make check-format
 ```
 
 Статический анализ при установленном cppcheck:
 
 ```bash
-cppcheck --enable=all --suppress=missingIncludeSystem src/game_of_life.c
+make cppcheck
 ```
+
+Если `cppcheck` не установлен, его можно запустить вручную после установки пакета
+`cppcheck`; сборка программы от него не зависит.

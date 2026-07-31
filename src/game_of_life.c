@@ -47,24 +47,43 @@ static int read_field(GameField field) {
   return character == EOF;
 }
 
-static int start_screen(void) {
+static void close_terminal(SCREEN *screen, FILE *input, FILE *output) {
+  if (screen != NULL) {
+    endwin();
+    delscreen(screen);
+  }
+  if (input != NULL) {
+    fclose(input);
+  }
+  if (output != NULL) {
+    fclose(output);
+  }
+}
+
+static SCREEN *start_screen(FILE *input, FILE *output, int *status) {
+  SCREEN *screen;
   int screen_rows;
   int screen_columns;
 
-  if (initscr() == NULL) {
-    return -1;
+  screen = newterm(NULL, output, input);
+  if (screen == NULL) {
+    *status = -1;
+    return NULL;
   }
+  set_term(screen);
   getmaxyx(stdscr, screen_rows, screen_columns);
   if (screen_rows < ROWS || screen_columns < COLUMNS) {
-    endwin();
-    return 0;
+    *status = 0;
+    return screen;
+  }
+  if (cbreak() == ERR || noecho() == ERR || keypad(stdscr, TRUE) == ERR) {
+    *status = -1;
+    return screen;
   }
 
-  cbreak();
-  noecho();
-  keypad(stdscr, TRUE);
   curs_set(0);
-  return 1;
+  *status = 1;
+  return screen;
 }
 
 static void display_field(GameField field) {
@@ -154,6 +173,9 @@ static void game_loop(GameField current) {
 
 int main(void) {
   GameField field;
+  FILE *control_input;
+  FILE *control_output;
+  SCREEN *screen;
   int screen_status;
 
   if (!read_field(field)) {
@@ -161,21 +183,27 @@ int main(void) {
             "Ошибка: поле должно содержать 25 строк по 80 символов 0 или 1.\n");
     return 1;
   }
-  if (freopen("/dev/tty", "r", stdin) == NULL) {
+  control_input = fopen("/dev/tty", "r");
+  control_output = fopen("/dev/tty", "w");
+  if (control_input == NULL || control_output == NULL) {
     fprintf(stderr, "Ошибка: не удалось открыть терминал для управления.\n");
+    close_terminal(NULL, control_input, control_output);
     return 1;
   }
-  screen_status = start_screen();
+
+  screen = start_screen(control_input, control_output, &screen_status);
   if (screen_status == 0) {
     fprintf(stderr, "Ошибка: размер терминала должен быть не меньше 80x25.\n");
+    close_terminal(screen, control_input, control_output);
     return 1;
   }
   if (screen_status < 0) {
     fprintf(stderr, "Ошибка: не удалось запустить ncurses.\n");
+    close_terminal(screen, control_input, control_output);
     return 1;
   }
 
   game_loop(field);
-  endwin();
+  close_terminal(screen, control_input, control_output);
   return 0;
 }
